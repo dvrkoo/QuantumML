@@ -159,14 +159,14 @@ def train_model(
             ).squeeze(1)
 
             # Extract quantum features for each image in the batch
-            quantum_features = [
-                torch.tensor(
+            quantum_features = torch.tensor(
+                [
                     quantum_feature_extractor_heuristic(
                         img, heuristic=selected_heuristic, locality=1
                     )
-                )
-                for img in features
-            ]
+                    for img in features
+                ]
+            )
             quantum_features = torch.stack(quantum_features).float().to(device)
 
             # Forward pass

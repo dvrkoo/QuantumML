@@ -6,6 +6,7 @@ from itertools import combinations
 
 def feature_map(features):
     # features is assumed to be a 2D array of shape (num_rows, num_qubits)
+    print(features.shape)
     num_rows, num_qubits = features.shape
 
     # Apply Hadamard to all qubits (to generate superposition)
@@ -50,10 +51,10 @@ dev = qml.device("lightning.gpu", wires=num_qubits)
 
 
 @qml.qnode(dev, interface="torch")
-def quantum_feature_extractor_ansatz(features):
+def quantum_feature_extractor_ansatz(features, params):
     # features: a tensor of shape (8, 8)
     feature_map(features)
-    ansatz(fixed_params)
+    ansatz(params.T)
     # Measure expectation values of PauliZ on each qubit
     return [qml.expval(qml.PauliZ(i)) for i in range(num_qubits)]
 
@@ -73,20 +74,58 @@ def quantum_feature_extractor_observable(features, locality=1):
     return measurements
 
 
-def quantum_feature_extractor_heuristic(
-    features, heuristic="observable", expansion_level=1, locality=1
-):
+def preprocess_image(image, locality=1):
     """
-    Depending on the `heuristic` parameter, call the corresponding QNode.
-      - heuristic="observable": uses the observable heuristic.
-      - heuristic="ansatz": uses the ansatz-expansion heuristic.
+    Prepares an image for quantum feature encoding by flattening and normalizing it.
+
+    Args:
+        image (torch.Tensor): Input image tensor (shape: HxW).
+        locality (int): Defines the level of locality (currently unused but reserved for future use).
+
+    Returns:
+        np.array: Flattened and normalized pixel values.
     """
-    if heuristic.lower() == "observable":
-        return quantum_feature_extractor_observable(features, locality)
-    elif heuristic.lower() == "ansatz":
-        return quantum_feature_extractor_ansatz(features)
+    # Flatten the image (convert from 2D to 1D)
+    flattened = image.flatten()
+
+    # Normalize pixel values between [0, π] (for angle encoding)
+    normalized = (
+        (flattened - flattened.min()) / (flattened.max() - flattened.min()) * np.pi
+    )
+
+    return normalized.numpy()
+
+
+def quantum_feature_extractor_heuristic(image, heuristic="ansatz", locality=1):
+    """
+    Extracts quantum features from an image using a heuristic method.
+
+    Args:
+        image (torch.Tensor): Input image.
+        heuristic (str): The heuristic method to use ("observable" or "ansatz").
+        locality (int): Level of locality for feature encoding.
+
+    Returns:
+        np.array: Extracted quantum features.
+    """
+    features = image
+
+    if heuristic == "observable":
+        # Compute features using the observable-based heuristic
+        return quantum_feature_extractor_observable(features)
+
+    elif heuristic == "ansatz":
+        # Compute the number of parameters for the ansatz
+        theta_count = features.shape[0]
+
+        # Generate shift values for parameter-shift differentiation
+        shifted_params = deriv_params(theta_count, order=1)
+
+        # Apply quantum circuit with shifted parameters
+        return quantum_feature_extractor_ansatz(features, shifted_params.T)
+
     else:
-        raise ValueError("Invalid heuristic. Choose 'observable' or 'ansatz'.")
+        raise ValueError("Invalid heuristic choice. Choose 'observable' or 'ansatz'.")
 
 
 def deriv_params(thetas: int, order: int):
