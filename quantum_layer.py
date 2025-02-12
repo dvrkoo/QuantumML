@@ -22,8 +22,7 @@ def feature_map(features):
         )
 
 
-def ansatz(params):
-    num_qubits = 2  # Based on our image columns
+def ansatz(params, num_qubits=2):
     # First layer of RY rotations
     for i in range(num_qubits):
         qml.RY(params[i], wires=i)
@@ -44,11 +43,54 @@ def ansatz(params):
 
 
 num_qubits = 16
+
 fixed_params = torch.zeros(16)  # Fixed parameters for the ansatz
 
 dev = qml.device("lightning.gpu", wires=num_qubits)
 
 
+@qml.qnode(dev, interface="torch")
+def base_ansatz_circuit(weights, features, num_qubits=4):
+    feature_map(features)
+    ansatz(weights, num_qubits)
+    return qml.expval(qml.PauliZ(0))
+
+
+def local_pauli_group(qubits: int, locality: int):
+    assert locality <= qubits, f"Locality must not exceed the number of qubits."
+    return list(generate_paulis(0, 0, "", qubits, locality))
+
+
+# This is a recursive generator function that constructs Pauli strings.
+def generate_paulis(
+    identities: int, paulis: int, output: str, qubits: int, locality: int
+):
+    # Base case: if the output string's length matches the number of qubits, yield it.
+    if len(output) == qubits:
+        yield output
+    else:
+        # Recursive case: add an "I" (identity) to the output string.
+        yield from generate_paulis(
+            identities + 1, paulis, output + "I", qubits, locality
+        )
+
+        # If the number of Pauli operators used is less than the locality, add "X", "Y", or "Z"
+        # systematically builds all possible Pauli strings that conform to the specified locality.
+        if paulis < locality:
+            yield from generate_paulis(
+                identities, paulis + 1, output + "X", qubits, locality
+            )
+            yield from generate_paulis(
+                identities, paulis + 1, output + "Y", qubits, locality
+            )
+            yield from generate_paulis(
+                identities, paulis + 1, output + "Z", qubits, locality
+            )
+
+
+####################
+# TODO: fix this part
+####################
 @qml.qnode(dev, interface="torch")
 def quantum_feature_extractor_ansatz(features, params):
     # features: a tensor of shape (8, 8)
@@ -71,28 +113,6 @@ def quantum_feature_extractor_observable(features, locality=1):
         measurements.append(qml.expval(qml.PauliZ(i)))
         measurements.append(qml.expval(qml.PauliX(i)))
     return measurements
-
-
-def preprocess_image(image, locality=1):
-    """
-    Prepares an image for quantum feature encoding by flattening and normalizing it.
-
-    Args:
-        image (torch.Tensor): Input image tensor (shape: HxW).
-        locality (int): Defines the level of locality (currently unused but reserved for future use).
-
-    Returns:
-        np.array: Flattened and normalized pixel values.
-    """
-    # Flatten the image (convert from 2D to 1D)
-    flattened = image.flatten()
-
-    # Normalize pixel values between [0, π] (for angle encoding)
-    normalized = (
-        (flattened - flattened.min()) / (flattened.max() - flattened.min()) * np.pi
-    )
-
-    return normalized.numpy()
 
 
 def quantum_feature_extractor_heuristic(image, heuristic="ansatz", locality=1):
@@ -118,7 +138,7 @@ def quantum_feature_extractor_heuristic(image, heuristic="ansatz", locality=1):
         theta_count = features.shape[0]
 
         # Generate shift values for parameter-shift differentiation
-        shifted_params = deriv_params(theta_count, order=1)
+        shifted_params = deriv_params(theta_count, order=2)
 
         # Apply quantum circuit with shifted parameters
         return np.array(quantum_feature_extractor_ansatz(features, shifted_params.T))
