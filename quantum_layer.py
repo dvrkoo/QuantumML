@@ -6,7 +6,6 @@ from itertools import combinations
 
 def feature_map(features):
     # features is assumed to be a 2D array of shape (num_rows, num_qubits)
-    print(features.shape)
     num_rows, num_qubits = features.shape
 
     # Apply Hadamard to all qubits (to generate superposition)
@@ -122,7 +121,7 @@ def quantum_feature_extractor_heuristic(image, heuristic="ansatz", locality=1):
         shifted_params = deriv_params(theta_count, order=1)
 
         # Apply quantum circuit with shifted parameters
-        return quantum_feature_extractor_ansatz(features, shifted_params.T)
+        return np.array(quantum_feature_extractor_ansatz(features, shifted_params.T))
 
     else:
         raise ValueError("Invalid heuristic choice. Choose 'observable' or 'ansatz'.")

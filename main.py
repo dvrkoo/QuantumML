@@ -101,21 +101,21 @@ def evaluate_model(model, loader, criterion, device):
             ).squeeze(1)
 
             # Convert features using quantum extractor for each image in the batch
-            quantum_features = [
-                torch.tensor(
-                    quantum_feature_extractor_heuristic(
-                        img,
-                        heuristic=selected_heuristic,
-                        locality=1,
-                    )
+            quantum_features = []
+            for img in features:
+                # Extract features for each image
+                qf = quantum_feature_extractor_heuristic(
+                    img, heuristic=selected_heuristic, locality=1
                 )
-                for img in features
-            ]
+                # Convert to tensor if it's not already one
+                if not isinstance(qf, torch.Tensor):
+                    qf = torch.tensor(qf, dtype=torch.float32)
+                quantum_features.append(qf)
             quantum_features = torch.stack(quantum_features).float().to(device)
 
-            outputs = model(quantum_features)
-            # Compute loss
-            labels = labels.unsqueeze(1).float().to(device)
+            quantum_features = quantum_features.view(quantum_features.shape[0], -1)
+            outputs = model(quantum_features)  # Compute loss
+            labels = labels.view(-1, 1).float().to(device)
             loss = criterion(outputs, labels)
             total_loss += loss.item() * labels.size(0)
 
@@ -159,21 +159,22 @@ def train_model(
             ).squeeze(1)
 
             # Extract quantum features for each image in the batch
-            quantum_features = torch.tensor(
-                [
-                    quantum_feature_extractor_heuristic(
-                        img, heuristic=selected_heuristic, locality=1
-                    )
-                    for img in features
-                ]
-            )
+            quantum_features = []
+            for img in features:
+                # Extract features for each image
+                qf = quantum_feature_extractor_heuristic(
+                    img, heuristic=selected_heuristic, locality=1
+                )
+                # Convert to tensor if it's not already one
+                if not isinstance(qf, torch.Tensor):
+                    qf = torch.tensor(qf, dtype=torch.float32)
+                quantum_features.append(qf)
             quantum_features = torch.stack(quantum_features).float().to(device)
 
             # Forward pass
-            output = model(quantum_features)
-
-            # Compute loss
-            labels = labels.unsqueeze(1).float().to(device)
+            quantum_features = quantum_features.view(quantum_features.shape[0], -1)
+            output = model(quantum_features)  # Compute loss
+            labels = labels.view(-1, 1).float().to(device)
             loss = criterion(output, labels)
 
             # Backpropagation and optimization
@@ -236,7 +237,7 @@ def train_and_evaluate(
 
 # For example, on macOS with MPS:
 device = torch.device("cuda" if torch.backends.mps.is_available() else "cpu")
-model = ClassicalNN(input_size=16 if selected_heuristic == "ansatz" else 32).to(device)
+model = ClassicalNN(input_size=256).to(device)
 
 history, test_loss, test_accuracy = train_and_evaluate(
     model, train_loader, val_loader, test_loader, device, num_epochs=100, lr=0.01
