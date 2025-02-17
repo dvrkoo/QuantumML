@@ -87,6 +87,18 @@ def create_hybrid_circuit(locality):
     return circuit
 
 
+def create_baseline_circuit():
+    dev = qml.device("lightning.qubit", wires=8)
+
+    @qml.qnode(dev, interface="torch", diff_method="parameter-shift")
+    def circuit(params, features):
+        feature_map(features)  # Keep original encoding
+        simple_ansatz(params)
+        return qml.expval(qml.PauliZ(0))
+
+    return circuit
+
+
 def local_pauli_group(n_qubits, locality):
     """Generate all k-local Pauli-Z observables"""
     obs = []
@@ -120,6 +132,23 @@ def ansatz(params):
     for i in range(8):
         qml.RY(params[i], wires=i)
         qml.RZ(params[i + 8], wires=i)
+
+
+def simple_ansatz(params):
+    """Shallow variational circuit with minimal parameters"""
+    num_qubits = 8
+    # First rotation layer (RY only)
+    for i in range(num_qubits):
+        qml.RY(params[i], wires=i)
+
+    # Basic entangling layer
+    for i in range(num_qubits - 1):
+        qml.CNOT(wires=[i, i + 1])
+    qml.CNOT(wires=[num_qubits - 1, 0])  # Close the chain
+
+    # Final rotation layer (single RZ)
+    for i in range(num_qubits):
+        qml.RZ(params[i + num_qubits], wires=i)
 
 
 def deriv_params(thetas: int, order: int):
