@@ -19,13 +19,14 @@ def process_sample(features, circuit, params, bias):
 transform = transforms.Compose(
     [
         transforms.ToTensor(),
-        # Apply max pooling over 7x7 patches to reduce from 28x28 to 4x4.
         transforms.Lambda(
-            lambda x: F.max_pool2d(x.unsqueeze(0), kernel_size=7, stride=7).squeeze(0)
+            lambda x: F.max_pool2d(
+                x.unsqueeze(0),
+                kernel_size=(14, 7),  # Vertical 14px, Horizontal 7px
+                stride=(14, 7),
+            ).squeeze(0)
         ),
-        # Remove the channel dimension if it still exists.
-        transforms.Lambda(lambda x: x.squeeze(0) if x.shape[0] == 1 else x),
-        # Rescale the pixel values to [0, 2π).
+        transforms.Lambda(lambda x: x.flatten()),  # ⚡ Now 8 features
         transforms.Lambda(lambda x: x * (2 * np.pi)),
     ]
 )

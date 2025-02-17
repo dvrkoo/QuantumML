@@ -7,6 +7,7 @@ import pennylane as qml
 from torchvision import datasets, transforms
 from tqdm import tqdm
 from data_loader import create_binary_datasets
+import torch.nn.functional as F
 
 # -----------------------------------------------------------------------------
 # Data Preprocessing (same as before)
@@ -15,19 +16,17 @@ from data_loader import create_binary_datasets
 transform = transforms.Compose(
     [
         transforms.ToTensor(),
-        # Downscale from 28x28 to 4x4 using max pooling.
         transforms.Lambda(
-            lambda x: qml.math.max_pool2d(
-                x.unsqueeze(0), kernel_size=7, stride=7
+            lambda x: F.max_pool2d(
+                x.unsqueeze(0),
+                kernel_size=(14, 7),  # Vertical 14px, Horizontal 7px
+                stride=(14, 7),
             ).squeeze(0)
         ),
-        # Remove channel dimension if it exists.
-        transforms.Lambda(lambda x: x.squeeze(0) if x.shape[0] == 1 else x),
-        # Rescale pixel values to [0, 2π).
+        transforms.Lambda(lambda x: x.flatten()),  # ⚡ Now 8 features
         transforms.Lambda(lambda x: x * (2 * np.pi)),
     ]
 )
-
 # Assume create_binary_datasets is defined elsewhere
 full_dataset = datasets.FashionMNIST(
     root="./data", train=True, download=True, transform=transform
@@ -66,7 +65,7 @@ def ansatz(params):
 
 # In this version, our circuit returns a single expectation value.
 def create_quantum_circuit():
-    dev = qml.device("default.qubit", wires=8)
+    dev = qml.device("lightning.qubit", wires=8)
 
     @qml.qnode(dev, interface="torch", batching="vector")
     def circuit(params, features):
@@ -155,7 +154,7 @@ def accuracy(predictions, targets):
 # -----------------------------------------------------------------------------
 
 # We will run training for different shift orders.
-for shift_order in [2]:
+for shift_order in [1, 2]:
     print(f"\nTraining with shift order {shift_order}")
 
     # Generate the shift vectors for the current order.
@@ -171,7 +170,7 @@ for shift_order in [2]:
     bias = torch.nn.Parameter(torch.tensor(0.0))
 
     optimizer = optim.Adam([params, bias], lr=0.01)
-    num_epochs = 100
+    num_epochs = 20
 
     for epoch in range(num_epochs):
         train_loss_total = 0.0
