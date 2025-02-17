@@ -12,10 +12,7 @@ import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm
 
-# set the random seed
-np.random.seed(42)
-torch.manual_seed(42)
-
+device = torch.device("cuda")
 
 transform = transforms.Compose(
     [
@@ -51,6 +48,17 @@ X_val_tensor, y_val_tensor = next(iter(val_loader))
 X_test_tensor, y_test_tensor = next(iter(test_loader))
 
 
+def process_batch(data_batch, locality):
+    processed_batch = []
+    for features in data_batch:
+        # Ensure features are in the correct format
+        features = np.array(features)
+        # Execute the quantum circuit
+        result = circuit(features, locality)
+        processed_batch.append(result)
+    return torch.tensor(processed_batch, dtype=torch.float32)
+
+
 def vcircuit_loader(dataloader):
     new_train_features_list = []
     new_train_labels_list = []
@@ -72,13 +80,13 @@ for locality in range(1, 4):
     print(str(locality) + "-local: ")
 
     # Define a quantum device with 8 qubits using the default simulator.
-    dev = qml.device("default.qubit", wires=8)
+    dev = qml.device("lightning.gpu", wires=16)
 
     # Define a quantum node (qnode) with the quantum circuit that will be executed on the device.
     @qml.qnode(dev)
-    def circuit(features):
+    def circuit(features, locality):
         # Generate all possible Pauli strings for the given locality.
-        measurements = local_pauli_group(8, locality)
+        measurements = local_pauli_group(16, locality)
 
         # Apply the feature map to encode classical data into quantum states.
         feature_map(features)
@@ -90,61 +98,33 @@ for locality in range(1, 4):
         ]
 
     # Vectorize the quantum circuit function to apply it to multiple data points in parallel.
-    print("Vectorizing the quantum circuit...")
     vcircuit = torch.vmap(circuit)
-    print("Done.")
-
-    print("Applying the quantum circuit to the training data...")
-    new_X_train = torch.stack(vcircuit(X_train_tensor), dim=1).float()
-    new_X_val = torch.stack(vcircuit(X_val_tensor), dim=1).float()
-    new_X_test = torch.stack(vcircuit(X_test_tensor), dim=1).float()
-    print("Done.")
-
-    input_dim = new_X_train.shape[1]
-
+    if locality == 1:
+        input_dim = 49
+    elif locality == 2:
+        input_dim = 1129
+    elif locality == 3:
+        input_dim = 16249
     model = ClassicalNN(input_dim, 64, 1)
+    model = model.to(device)
 
-    # BCEWithLogitsLoss requires targets in {0,1}, so convert -1/+1 labels:
-    y_train_tensor_binary = ((y_train_tensor + 1) / 2).float()  # now 0 or 1
-    y_val_tensor_binary = ((y_val_tensor + 1) / 2).float()
-    y_test_tensor_binary = ((y_test_tensor + 1) / 2).float()
-
-    # Create TensorDatasets for the quantum-transformed features.
-    train_dataset_quantum = torch.utils.data.TensorDataset(
-        new_X_train, y_train_tensor_binary.unsqueeze(1)
-    )
-    val_dataset_quantum = torch.utils.data.TensorDataset(
-        new_X_val, y_val_tensor_binary.unsqueeze(1)
-    )
-    test_dataset_quantum = torch.utils.data.TensorDataset(
-        new_X_test, y_test_tensor_binary.unsqueeze(1)
-    )
-    # DataLoaders for the classifier training.
-    batch_size = 32
-    train_loader_quantum = DataLoader(
-        train_dataset_quantum, batch_size=batch_size, shuffle=True
-    )
-    val_loader_quantum = DataLoader(
-        val_dataset_quantum, batch_size=batch_size, shuffle=False
-    )
-    test_loader_quantum = DataLoader(
-        test_dataset_quantum, batch_size=batch_size, shuffle=False
-    )
-    # --- Train the MLP classifier ---
-    # (Assume 'model' is defined and imported elsewhere.)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.BCEWithLogitsLoss()
     print("Training the classifier...")
 
-    num_epochs = 50  # adjust as needed
-    for epoch in tqdm(range(num_epochs)):
+    num_epochs = 100  # adjust as needed
+    for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
         correct = 0
         total = 0
-        for features, labels in train_loader_quantum:
+        for features, labels in tqdm(train_loader):
+            quantum_features = process_batch(features, locality)
+            labels = ((labels + 1) / 2).float()
+            labels = labels.float().to(device)
+            quantum_features = quantum_features.to(device)
             optimizer.zero_grad()
-            outputs = model(features)
+            outputs = model(quantum_features).squeeze(1)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -162,8 +142,12 @@ for locality in range(1, 4):
         correct = 0
         total = 0
         with torch.no_grad():
-            for features, labels in val_loader_quantum:
-                outputs = model(features)
+            for features, labels in val_loader:
+                quantum_features = process_batch(features, locality)
+                quantum_features = quantum_features.to(device)
+                labels = ((labels + 1) / 2).float()
+                labels = labels.float().to(device)
+                outputs = model(quantum_features).squeeze(1)
                 loss = criterion(outputs, labels)
                 val_loss += loss.item() * features.size(0)
                 preds = (torch.sigmoid(outputs) >= 0.5).float()

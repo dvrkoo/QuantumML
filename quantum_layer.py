@@ -29,7 +29,7 @@ def ansatz(params, num_qubits=2):
 
     # First entangling layer: cyclic CNOTs
     for i in range(num_qubits):
-        qml.CNOT(wires=[(i - 1) % num_qubits, i])
+        qml.CNOT(wires=[(i - 1) % num_qubits, i % num_qubits])
 
     # Second layer of RY rotations
     for i in range(num_qubits):
@@ -42,7 +42,7 @@ def ansatz(params, num_qubits=2):
         )
 
 
-num_qubits = 16
+num_qubits = 8
 
 fixed_params = torch.zeros(16)  # Fixed parameters for the ansatz
 
@@ -50,7 +50,7 @@ dev = qml.device("lightning.gpu", wires=num_qubits)
 
 
 @qml.qnode(dev, interface="torch")
-def base_ansatz_circuit(weights, features, num_qubits=4):
+def base_ansatz_circuit(weights, features, num_qubits=8):
     feature_map(features)
     ansatz(weights, num_qubits)
     return qml.expval(qml.PauliZ(0))

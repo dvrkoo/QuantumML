@@ -39,13 +39,13 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-num_qubits = 4
+num_qubits = 8
 dev = qml.device("lightning.gpu", wires=num_qubits)
 
 
 def variational_classifier(weights, bias, x):
     # The circuit returns a scalar; add the bias term.
-    return base_ansatz_circuit(weights, x, num_qubits) + bias
+    return base_ansatz_circuit(weights, x, 8) + bias
 
 
 def square_loss(labels, predictions):
@@ -86,7 +86,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 
 # Initialize 16 ansatz parameters and a bias.
-initial_weights = 0.01 * np.random.randn(8)
+initial_weights = 0.01 * np.random.randn(16)
 initial_bias = 0.0
 
 params = {
