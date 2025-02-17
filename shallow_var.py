@@ -40,7 +40,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 num_qubits = 8
-dev = qml.device("lightning.gpu", wires=num_qubits)
+dev = qml.device("lightning.qubit", wires=num_qubits)
 
 
 def variational_classifier(weights, bias, x):

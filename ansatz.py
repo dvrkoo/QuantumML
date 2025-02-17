@@ -43,7 +43,7 @@ def ansatz(params, num_qubits=2):
 num_qubits = 16
 
 
-dev = qml.device("lightning.gpu", wires=num_qubits)
+dev = qml.device("lightning.qubit", wires=num_qubits)
 
 
 @qml.qnode(dev, interface="torch")

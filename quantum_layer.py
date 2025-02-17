@@ -46,7 +46,7 @@ num_qubits = 8
 
 fixed_params = torch.zeros(16)  # Fixed parameters for the ansatz
 
-dev = qml.device("lightning.gpu", wires=num_qubits)
+dev = qml.device("lightning.qubit", wires=num_qubits)
 
 
 @qml.qnode(dev, interface="torch")

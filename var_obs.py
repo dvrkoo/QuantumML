@@ -88,8 +88,7 @@ def create_quantum_circuit(locality):
     The circuit encodes the input features via a feature map,
     applies an ansatz, and then returns expectation values for each observable.
     """
-    # For this example, we use 4 qubits.
-    dev = qml.device("default.qubit", wires=8)
+    dev = qml.device("lightning.qubit", wires=8)
 
     @qml.qnode(dev, interface="torch", batching="vector")
     def circuit(params, features):
