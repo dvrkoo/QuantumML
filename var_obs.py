@@ -1,19 +1,12 @@
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-import pennylane as qml
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from torchvision import datasets, transforms
 from data_loader import create_binary_datasets
-from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
-
-
-def process_sample(features, circuit, params, bias):
-    # Evaluate the quantum circuit for one sample
-    return variational_classifier(circuit, params, bias, features.float())
+from models.quantum_layer import create_obs_circuit, accuracy
 
 
 transform = transforms.Compose(
@@ -26,7 +19,7 @@ transform = transforms.Compose(
                 stride=(14, 7),
             ).squeeze(0)
         ),
-        transforms.Lambda(lambda x: x.flatten()),  # ⚡ Now 8 features
+        transforms.Lambda(lambda x: x.flatten()),  #  Now 8 features
         transforms.Lambda(lambda x: x * (2 * np.pi)),
     ]
 )
@@ -47,70 +40,6 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
-def feature_map(features):
-    # Example: encode each feature into an RX rotation.
-    for i, feature in enumerate(features):
-        qml.RX(feature, wires=i)
-
-
-def ansatz(weights):
-    # Example ansatz: for a system with 4 qubits, use 2 rotations per qubit.
-    num_qubits = 8
-    for i in range(num_qubits):
-        qml.RY(weights[i], wires=i)
-        qml.RZ(weights[i + num_qubits], wires=i)
-
-
-# =============================================================================
-# Define a quantum circuit that returns an expectation value.
-# We build a circuit with a given locality by (for example) choosing a different observable.
-# Here we define a dummy "local_pauli_group" for demonstration.
-# =============================================================================
-
-
-def local_pauli_group(n_qubits, locality):
-    """
-    For demonstration, this dummy function returns a list of measurement observables.
-    In your implementation, it should generate a list of Pauli strings based on the locality.
-    """
-    # For simplicity, we return one observable if locality==1,
-    # two observables if locality==2, etc.
-    # Replace this with your actual measurement generation.
-    observables = []
-    for i in range(locality):
-        # For instance, measure PauliZ on qubit i (make sure i < n_qubits)
-        observables.append(qml.PauliZ(i))
-    return observables
-
-
-def create_quantum_circuit(locality):
-    """
-    Returns a QNode that uses the given locality.
-    The circuit encodes the input features via a feature map,
-    applies an ansatz, and then returns expectation values for each observable.
-    """
-    dev = qml.device("lightning.qubit", wires=8)
-
-    @qml.qnode(dev, interface="torch", batching="vector")
-    def circuit(params, features):
-        # Encode the classical features.
-        feature_map(features)
-        # Apply the variational ansatz.
-        ansatz(params)
-        # Generate observables based on the locality.
-        observables = local_pauli_group(8, locality)
-        # Measure expectation values for each observable.
-        # If there is only one observable, return a scalar; otherwise return a list.
-        return [qml.expval(obs) for obs in observables]
-
-    return circuit
-
-
-# =============================================================================
-# Define the variational classifier and RMSE loss.
-# =============================================================================
-
-
 def variational_classifier(circuit, params, bias, features):
     """
     Given a quantum circuit, parameters, and bias,
@@ -122,7 +51,6 @@ def variational_classifier(circuit, params, bias, features):
     """
     outputs = circuit(params, features)
     # If the output is a list (multiple observables), average them.
-    # (Alternatively, you could learn a weight for each observable.)
     if isinstance(outputs, (list, tuple)):
         output = torch.mean(torch.stack(outputs))
     else:
@@ -134,21 +62,13 @@ def rmse_loss(pred, target):
     return torch.sqrt(torch.mean((pred - target) ** 2))
 
 
-def accuracy(predictions, targets):
-    # For binary classification, use the sign of the prediction.
-    pred_class = torch.sign(predictions)
-    # targets are assumed to be -1 or +1.
-    return (pred_class == targets).float().mean().item()
-
-
 for locality in range(1, 4):
     print(f"\nTraining with {locality}-local observables:")
 
     # Create the quantum circuit for the given locality.
-    circuit = create_quantum_circuit(locality)
+    circuit = create_obs_circuit(locality)
 
     # Initialize variational parameters:
-    # For 4 qubits and 2 rotations per qubit → 8 parameters.
     params = torch.nn.Parameter(0.01 * torch.randn(16))
     bias = torch.nn.Parameter(torch.tensor(0.0))
 
