@@ -66,7 +66,7 @@ def ansatz(params):
 
 # In this version, our circuit returns a single expectation value.
 def create_quantum_circuit():
-    dev = qml.device("default.qubit", wires=8)
+    dev = qml.device("lightning.qubit", wires=8)
 
     @qml.qnode(dev, interface="torch", batching="vector")
     def circuit(params, features):
@@ -155,7 +155,7 @@ def accuracy(predictions, targets):
 # -----------------------------------------------------------------------------
 
 # We will run training for different shift orders.
-for shift_order in [2]:
+for shift_order in [1, 2]:
     print(f"\nTraining with shift order {shift_order}")
 
     # Generate the shift vectors for the current order.
