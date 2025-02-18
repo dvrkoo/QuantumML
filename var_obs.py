@@ -72,7 +72,7 @@ for locality in range(1, 4):
     params = torch.nn.Parameter(0.01 * torch.randn(16))
     bias = torch.nn.Parameter(torch.tensor(0.0))
 
-    optimizer = optim.Adam([params, bias], lr=0.05)
+    optimizer = optim.Adam([params, bias], lr=0.01)
     num_epochs = 100
 
     for epoch in range(num_epochs):

@@ -72,7 +72,7 @@ for shift_order in [1, 2]:
     bias = torch.nn.Parameter(torch.tensor(0.0))
 
     optimizer = optim.Adam([params, bias], lr=0.01)
-    num_epochs = 20
+    num_epochs = 30
 
     for epoch in range(num_epochs):
         train_loss_total = 0.0
