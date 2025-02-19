@@ -6,6 +6,10 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from data_loader import create_binary_datasets
 
+
+# set seed
+torch.manual_seed(0)
+
 # Data preprocessing
 transform = transforms.Compose(
     [
@@ -16,7 +20,6 @@ transform = transforms.Compose(
             ).squeeze()
         ),
         transforms.Lambda(lambda x: x.flatten()),
-        transforms.Lambda(lambda x: x * (2 * np.pi)),  # Scale to [0, 2π)
     ]
 )
 
@@ -44,9 +47,9 @@ class LogisticRegression(nn.Module):
         return self.linear(x.flatten(1)).squeeze()
 
 
-def train_logreg(model, train_loader, val_loader, num_epochs=100):
+def train_logreg(model, train_loader, val_loader, num_epochs=600):
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.0005)
     best_val_acc = 0.0
     best_model = None
 
@@ -78,6 +81,7 @@ def train_logreg(model, train_loader, val_loader, num_epochs=100):
 
         # Save best model
         if val_acc > best_val_acc:
+            best_loss = val_loss
             best_val_acc = val_acc
             best_model = model.state_dict().copy()
 
@@ -87,10 +91,13 @@ def train_logreg(model, train_loader, val_loader, num_epochs=100):
                 f"Epoch {epoch+1:3d}/{num_epochs} | "
                 f"Train Loss: {train_loss/total:.4f} | "
                 f"Train Acc: {correct/total:.4f} | "
+                f"Val Loss: {val_loss:.4f} | "
                 f"Val Acc: {val_acc:.4f}"
             )
 
     # Load best model for testing
+    print(f"Best Validation Accuracy: {best_val_acc:.4f}")
+    print(f"Best Validation Loss: {best_loss:.4f}")
     model.load_state_dict(best_model)
     return model
 
@@ -121,19 +128,24 @@ def test_logreg(model, test_loader):
     model.eval()
     correct = 0
     total = 0
+    total_loss = 0.0
+    criterion = nn.BCEWithLogitsLoss()
 
     with torch.no_grad():
         for inputs, targets in test_loader:
+            targets_01 = ((targets + 1) / 2).float()
             outputs = model(inputs)
+            loss = criterion(outputs, targets_01)
+            total_loss += loss.item() * inputs.size(0)
             preds = torch.sign(outputs)
             correct += (preds == targets).sum().item()
             total += targets.size(0)
 
-    return correct / total
+    return correct / total, total_loss / total
 
 
 # Usage
 logreg = LogisticRegression()
 trained_logreg = train_logreg(logreg, train_loader, val_loader)
-test_acc = test_logreg(trained_logreg, test_loader)
-print(f"\nFinal Test Accuracy: {test_acc:.4f}")
+test_acc, test_loss = test_logreg(trained_logreg, test_loader)
+print(f"\nFinal Test Accuracy: {test_acc:.4f} | Test Loss: {test_loss:.4f}")

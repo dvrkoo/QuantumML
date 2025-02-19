@@ -6,6 +6,9 @@ from data_loader import create_binary_datasets
 from torchvision import datasets, transforms
 import numpy as np
 
+# set seed
+torch.manual_seed(0)
+
 # Data preprocessing
 transform = transforms.Compose(
     [
@@ -16,7 +19,6 @@ transform = transforms.Compose(
             ).squeeze()
         ),
         transforms.Lambda(lambda x: x.flatten()),
-        transforms.Lambda(lambda x: x * (2 * np.pi)),  # Scale to [0, 2π)
     ]
 )
 
@@ -50,9 +52,9 @@ class SimpleMLP(nn.Module):
         return self.layers(x.flatten(1))
 
 
-def train_mlp(model, train_loader, val_loader, num_epochs=100):
+def train_mlp(model, train_loader, val_loader, num_epochs=400):
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0005)
     best_acc = 0.0
     best_model = None
 
@@ -85,6 +87,7 @@ def train_mlp(model, train_loader, val_loader, num_epochs=100):
 
         # Save best model
         if val_acc > best_acc:
+            best_loss = val_loss
             best_acc = val_acc
             best_model = model.state_dict().copy()
 
@@ -94,11 +97,15 @@ def train_mlp(model, train_loader, val_loader, num_epochs=100):
                 f"Epoch {epoch+1:3d}/{num_epochs} | "
                 f"Train Loss: {train_loss/total:.4f} | "
                 f"Train Acc: {correct/total:.4f} | "
+                f"Val Loss: {val_loss:.4f} |"
                 f"Val Acc: {val_acc:.4f}"
             )
 
     # Load best model for testing
     model.load_state_dict(best_model)
+    print(f"Best Validation Accuracy: {best_acc:.4f}")
+    print(f"Best Validation Loss: {best_loss:.4f}")
+
     return model
 
 
@@ -128,19 +135,24 @@ def test_mlp(model, test_loader):
     model.eval()
     correct = 0
     total = 0
+    criterion = nn.BCEWithLogitsLoss()
+    total_loss = 0.0
 
     with torch.no_grad():
         for inputs, targets in test_loader:
+            targets_01 = ((targets + 1) / 2).float()
             outputs = model(inputs).squeeze()
+            loss = criterion(outputs, targets_01)
+            total_loss += loss.item() * inputs.size(0)
             preds = torch.sign(outputs)
             correct += (preds == targets).sum().item()
             total += targets.size(0)
 
-    return correct / total
+    return (correct / total), total_loss / total
 
 
 # Usage
 mlp = SimpleMLP()
 trained_mlp = train_mlp(mlp, train_loader, val_loader)
-test_acc = test_mlp(trained_mlp, test_loader)
-print(f"\nFinal Test Accuracy: {test_acc:.4f}")
+test_acc, test_loss = test_mlp(trained_mlp, test_loader)
+print(f"Test Accuracy: {test_acc:.4f}" "|" f" Test Loss: {test_loss:.4f}")

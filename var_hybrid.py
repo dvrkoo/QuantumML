@@ -73,9 +73,9 @@ def rmse_loss(pred, target):
     return torch.sqrt(torch.mean((pred - target) ** 2))
 
 
-def train_hybrid_model(locality=1, shift_order=1, num_epochs=20):
+def train_hybrid_model(locality=1, shift_order=1, num_epochs=30):
     # Quantum circuit configuration
-    num_params = 16  # RY + RZ for 16 qubits
+    num_params = 16
 
     # Generate parameter shift vectors
     shift_vectors = torch.tensor(

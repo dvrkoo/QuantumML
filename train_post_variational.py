@@ -9,6 +9,8 @@ from data_loader import create_binary_datasets
 from tqdm import tqdm
 from models.quantum_layer import create_post_variational_system
 
+# set seed
+torch.manual_seed(0)
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 
@@ -121,14 +123,14 @@ def train_post_variational(locality=1, shift_order=1):
     circuit, mlp, shift_vectors = create_post_variational_system(locality, shift_order)
     params = torch.nn.Parameter(0.01 * torch.randn(16))
     optimizer = optim.Adam(
-        [{"params": params, "lr": 0.01}, {"params": mlp.parameters(), "lr": 0.001}]
+        [{"params": params, "lr": 0.01}, {"params": mlp.parameters(), "lr": 0.0001}]
     )
     criterion = nn.BCEWithLogitsLoss()
 
     best_val_acc = 0.0
     best_params = None
 
-    for epoch in range(100):
+    for epoch in range(35):
         # Training phase
         mlp.train()
         train_loss = 0.0
@@ -167,6 +169,7 @@ def train_post_variational(locality=1, shift_order=1):
 
         # Save best model
         if val_acc > best_val_acc:
+            best_val_loss = val_loss
             best_val_acc = val_acc
             best_params = params.clone()
             torch.save(mlp.state_dict(), "best_mlp.pth")
@@ -181,10 +184,11 @@ def train_post_variational(locality=1, shift_order=1):
     test_loss, test_acc = test(
         mlp, best_params, test_loader, shift_vectors, locality, criterion, circuit
     )
+    print(f"Best val loss {best_val_loss:.4f} | Best val acc {best_val_acc:.4f}")
     print(f"\nFinal Test Metrics: Loss {test_loss:.4f} | Acc {test_acc:.4f}")
 
     return mlp, best_params
 
 
 # Train the model
-mlp, best_params = train_post_variational(locality=1, shift_order=1)
+mlp, best_params = train_post_variational(locality=2, shift_order=1)
