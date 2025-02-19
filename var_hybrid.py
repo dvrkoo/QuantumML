@@ -73,7 +73,7 @@ def rmse_loss(pred, target):
     return torch.sqrt(torch.mean((pred - target) ** 2))
 
 
-def train_hybrid_model(locality=1, shift_order=1, num_epochs=30):
+def train_hybrid_model(locality=1, shift_order=1, num_epochs=5):
     # Quantum circuit configuration
     num_params = 16
 
@@ -88,7 +88,7 @@ def train_hybrid_model(locality=1, shift_order=1, num_epochs=30):
     # Model parameters
     params = torch.nn.Parameter(0.01 * torch.randn(num_params))
     bias = torch.nn.Parameter(torch.tensor(0.0))
-    optimizer = optim.Adam([params, bias], lr=0.01)
+    optimizer = optim.Adam([params, bias], lr=0.05)
 
     # Metrics storage
     metrics = {
@@ -163,6 +163,7 @@ def train_hybrid_model(locality=1, shift_order=1, num_epochs=30):
 
     # Final testing
     test_correct, test_total = 0, 0
+    test_loss = 0
     with torch.no_grad():
         for features, targets in test_loader:
             batch_preds = []
@@ -173,11 +174,16 @@ def train_hybrid_model(locality=1, shift_order=1, num_epochs=30):
                 batch_preds.append(pred)
 
             batch_preds = torch.stack(batch_preds)
+            test_loss += rmse_loss(batch_preds, targets.float()).item() * len(targets)
+
             test_total += len(targets)
             test_correct += accuracy(batch_preds, targets) * len(targets)
 
     metrics["test_acc"] = test_correct / test_total
-    print(f"\nFinal Test Accuracy: {metrics['test_acc']:.4f}")
+    metrics["test_loss"] = test_loss / test_total
+    print(
+        f"\nFinal Test Accuracy: {metrics['test_acc']:.4f} | Loss: {metrics['test_loss']:.4f}"
+    )
 
     return metrics, params, bias
 
@@ -188,8 +194,8 @@ def train_hybrid_model(locality=1, shift_order=1, num_epochs=30):
 
 # Test different combinations
 results = []
-for locality in [1, 2]:  # Measurement locality
-    for shift_order in [1, 2]:  # Parameter shift order
+for locality in [1]:  # Measurement locality
+    for shift_order in [2]:  # Parameter shift order
         print(f"\nTraining Locality={locality}, Shift Order={shift_order}")
         # Get all return values but only store what we need
         metrics, _, _ = train_hybrid_model(locality, shift_order)

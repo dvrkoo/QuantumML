@@ -31,7 +31,8 @@ transform = transforms.Compose(
         transforms.Lambda(lambda x: x * (2 * np.pi)),
     ]
 )
-# Assume create_binary_datasets is defined elsewhere
+"""
+FashionMNIST
 full_dataset = datasets.FashionMNIST(
     root="./data", train=True, download=True, transform=transform
 )
@@ -39,6 +40,22 @@ full_dataset = datasets.FashionMNIST(
 train_dataset, val_dataset, test_dataset = create_binary_datasets(
     full_dataset, class_1=4, class_2=6, train_size=200, val_size=50, test_size=50
 )
+"""
+# Load the datasets (download if needed)
+train_full = datasets.MNIST("./data", train=True, download=True, transform=transform)
+test_full = datasets.MNIST("./data", train=False, download=True, transform=transform)
+
+# Step 2: Create binary datasets (e.g., classify digits 0 vs 1)
+train_dataset, val_dataset, test_dataset = create_binary_datasets(
+    train_full,
+    class_1=0,  # First digit (0)
+    class_2=1,  # Second digit (1)
+    train_size=200,
+    val_size=50,
+    test_size=50,
+)
+
+# Step 3: Create data loaders
 
 batch_size = 32
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -130,7 +147,7 @@ def train_post_variational(locality=1, shift_order=1):
     best_val_acc = 0.0
     best_params = None
 
-    for epoch in range(35):
+    for epoch in range(10):
         # Training phase
         mlp.train()
         train_loss = 0.0

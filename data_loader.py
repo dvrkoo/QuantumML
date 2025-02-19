@@ -1,4 +1,5 @@
 from torch.utils.data import Dataset, Subset
+from torchvision import datasets
 
 
 class BinaryFashionMNIST(Dataset):
@@ -50,3 +51,22 @@ def create_binary_datasets(
         range(train_total + val_total, train_total + val_total + test_total),
     )
     return train_dataset, val_dataset, test_dataset
+
+
+# Binary MNIST (e.g., digit 0 vs digit 1)
+class BinaryMNIST(Dataset):
+    def __init__(self, dataset, class_1=0, class_2=1):
+        self.indices = [
+            i for i, (_, label) in enumerate(dataset) if label in [class_1, class_2]
+        ]
+        self.dataset = dataset
+        self.class_1 = class_1
+        self.class_2 = class_2
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        image, label = self.dataset[self.indices[idx]]
+        binary_label = -1 if label == self.class_1 else 1
+        return image, binary_label

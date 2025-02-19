@@ -22,15 +22,29 @@ transform = transforms.Compose(
     ]
 )
 
-# Load datasets
-full_dataset = datasets.FashionMNIST(
-    root="./data", train=True, download=True, transform=transform
-)
+# # Load datasets
+# full_dataset = datasets.FashionMNIST(
+#     root="./data", train=True, download=True, transform=transform
+# )
+# train_dataset, val_dataset, test_dataset = create_binary_datasets(
+#     full_dataset, class_1=4, class_2=6, train_size=200, val_size=50, test_size=50
+# )
+# Load the datasets (download if needed)
+train_full = datasets.MNIST("./data", train=True, download=True, transform=transform)
+test_full = datasets.MNIST("./data", train=False, download=True, transform=transform)
+
+# Step 2: Create binary datasets (e.g., classify digits 0 vs 1)
 train_dataset, val_dataset, test_dataset = create_binary_datasets(
-    full_dataset, class_1=4, class_2=6, train_size=200, val_size=50, test_size=50
+    train_full,
+    class_1=0,  # First digit (0)
+    class_2=1,  # Second digit (1)
+    train_size=200,
+    val_size=50,
+    test_size=50,
 )
 
-# DataLoaders
+# Step 3: Create data loaders
+
 batch_size = 32
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
